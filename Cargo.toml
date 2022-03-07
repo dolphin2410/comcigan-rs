@@ -2,6 +2,10 @@
 name = "comcigan-rs"
 version = "0.1.0"
 edition = "2021"
+readme = "README.md"
+repository = "https://github.com/dolphin2410/comcigan-rs/"
+license = "MIT OR Apache-2.0"
+keywords = ["comcigan", "comcigan-parser"]
 
 [dependencies]
 encoding_rs = "0.8.30"
