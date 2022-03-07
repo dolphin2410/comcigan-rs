@@ -5,15 +5,15 @@ use serde::{Serialize, Deserialize};
 pub mod class;
 
 #[derive(Serialize, Deserialize)]
-struct SchoolList {
+pub struct SchoolList {
     pub 학교검색: Vec<School>
 }
 
 #[derive(Serialize, Deserialize)]
-struct School(u32, String, String, u32);
+pub struct School(u32, String, String, u32);
 
 #[derive(Serialize, Deserialize)]
-struct RawSchoolData {
+pub struct RawSchoolData {
     pub 자료311: Vec<Vec<Vec<Vec<u32>>>>,
     pub 자료565: Vec<String>,
     pub 자료389: Vec<String>
@@ -30,7 +30,7 @@ async fn test() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-async fn view(client: &Client<HttpConnector>, school: &School) -> Result<SchoolData, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn view(client: &Client<HttpConnector>, school: &School) -> Result<SchoolData, Box<dyn std::error::Error + Send + Sync>> {
     let raw_id = format!("106686_{}_0_1", school.3);
     let encoded = base64::encode(raw_id);
 
@@ -79,7 +79,7 @@ async fn view(client: &Client<HttpConnector>, school: &School) -> Result<SchoolD
     Ok(to_return)
 }
 
-async fn search_school(client: &Client<HttpConnector>, school: &'static str) -> Result<Vec<School>, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn search_school(client: &Client<HttpConnector>, school: &'static str) -> Result<Vec<School>, Box<dyn std::error::Error + Send + Sync>> {
     let (result, _, _) = encoding_rs::EUC_KR.encode(school);
     let query: String = result.iter().map(|byte| format!("%{:X}", byte)).collect();
 
@@ -96,6 +96,6 @@ async fn search_school(client: &Client<HttpConnector>, school: &'static str) -> 
     Ok(serde_json::from_str::<SchoolList>(validate_json(&school_list).as_str()).unwrap().학교검색)
 }
 
-fn validate_json(str: &str) -> String {
+pub fn validate_json(str: &str) -> String {
     str.chars().filter(|c| { c != &'\u{0}' }).collect::<String>()
 }
