@@ -87,10 +87,7 @@ pub async fn view(client: &Client<HttpConnector>, school: &School) -> Result<Sch
                     let mut teacher = data.teachers[th as usize].clone();
                     if subject == "19" {
                         subject.clear();
-                        subject.push_str("Nothing to study...");
-
                         teacher.clear();
-                        teacher.push_str("No Teacher for this class...");
                     }
                     day.studies.push(class::Study { subject, teacher })
                 }
