@@ -31,24 +31,36 @@ pub struct RawSchoolDataKey {
     pub url_piece: String
 }
 
+impl RawSchoolDataKey {
+    pub fn clone(&self) -> RawSchoolDataKey {
+        RawSchoolDataKey {
+            timetable: self.timetable.clone(),
+            subjects: self.subjects.clone(),
+            teachers: self.teachers.clone(),
+            encode_header: self.encode_header.clone(),
+            url_piece: self.url_piece.clone()
+        }
+    }
+}
+
 #[tokio::test]
 async fn test() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let client = Client::new();
-    let schools = search_school(&client, "향동중").await?;
-    let school = view(&client, &schools[0]).await?;
+    let data = request_target(&client).await?;
+    let schools = search_school(&client, "향동중", data.clone()).await?;
+    let school = view(&client, &schools[0], data.clone()).await?;
     let study = school.grade(2).class(4).day(5).study(4);
     println!("Subject: {}", study.subject);
     println!("Teacher: {}", study.teacher);
     Ok(())
 }
 
-pub async fn view(client: &Client<HttpConnector>, school: &School) -> Result<SchoolData, Box<dyn std::error::Error + Send + Sync>> {
-    let subtarget = request_target(client).await?;
-    let raw_id = format!("{}{}_0_1", subtarget.encode_header, school.3);
+pub async fn view(client: &Client<HttpConnector>, school: &School, keys: RawSchoolDataKey) -> Result<SchoolData, Box<dyn std::error::Error + Send + Sync>> {
+    let raw_id = format!("{}{}_0_1", keys.encode_header, school.3);
     let encoded = base64::encode(raw_id);
 
 
-    let target = subtarget.url_piece.split("?").nth(0).unwrap();
+    let target = keys.url_piece.split("?").nth(0).unwrap();
     let request = format!("http://comci.kr:4082/{}?{}", &target, &encoded).parse()?;
     let mut response = client.get(request).await?;
 
@@ -60,9 +72,9 @@ pub async fn view(client: &Client<HttpConnector>, school: &School) -> Result<Sch
     let (school_list, _, _) = encoding_rs::UTF_8.decode(buffer.as_slice());
     let json = validate_json(&school_list);
     let raw_data = serde_json::from_str::<HashMap<&str, Value>>(json.as_str()).unwrap();
-    let teachers = serde_json::value::from_value::<Vec<String>>(raw_data.get(subtarget.teachers.as_str()).unwrap().to_owned()).unwrap();
-    let subjects = serde_json::value::from_value::<Vec<String>>(raw_data.get(subtarget.subjects.as_str()).unwrap().to_owned()).unwrap();
-    let timetable = serde_json::value::from_value::<Vec<Vec<Vec<Vec<u32>>>>>(raw_data.get(subtarget.timetable.as_str()).unwrap().to_owned()).unwrap();
+    let teachers = serde_json::value::from_value::<Vec<String>>(raw_data.get(keys.teachers.as_str()).unwrap().to_owned()).unwrap();
+    let subjects = serde_json::value::from_value::<Vec<String>>(raw_data.get(keys.subjects.as_str()).unwrap().to_owned()).unwrap();
+    let timetable = serde_json::value::from_value::<Vec<Vec<Vec<Vec<u32>>>>>(raw_data.get(keys.timetable.as_str()).unwrap().to_owned()).unwrap();
     
     let data = RawSchoolData {
         teachers,
@@ -101,13 +113,11 @@ pub async fn view(client: &Client<HttpConnector>, school: &School) -> Result<Sch
     Ok(to_return)
 }
 
-pub async fn search_school(client: &Client<HttpConnector>, school: &'static str) -> Result<Vec<School>, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn search_school(client: &Client<HttpConnector>, school: &'static str, keys: RawSchoolDataKey) -> Result<Vec<School>, Box<dyn std::error::Error + Send + Sync>> {
     let (result, _, _) = encoding_rs::EUC_KR.encode(school);
     let query: String = result.iter().map(|byte| format!("%{:X}", byte)).collect();
 
-    let target = request_target(client).await?;
-
-    let request = format!("http://comci.kr:4082/{}{}", &target.url_piece, &query).parse()?;
+    let request = format!("http://comci.kr:4082/{}{}", &keys.url_piece, &query).parse()?;
     let mut response = client.get(request).await?;
     
     let mut buffer = vec![];

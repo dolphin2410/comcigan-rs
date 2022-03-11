@@ -8,8 +8,9 @@ use hyper::Client;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let client = Client::new();
-    let schools = search_school(&client, "<여러분의 학교 이름>").await?; // OO중 / OO고
-    let school = view(&client, &schools[0]).await?;
+    let data = request_target(&client).await?;
+    let schools = search_school(&client, "<여러분의 학교 이름>", data.clone()).await?; // OO중 / OO고
+    let school = view(&client, &schools[0], data.clone()).await?;
     let study = school.grade(2).class(4).day(5).study(4); // 2학년 4반 금요일 4교시
     println!("Subject: {}", study.subject); // 과목 출력
     println!("Teacher: {}", study.teacher); // 교과 선생님 출력 
