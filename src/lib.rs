@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 
 use class::{Grade, Class, Day, SchoolData};
 use hyper::{body::HttpBody as _, Client, client::HttpConnector};
@@ -45,6 +45,7 @@ impl RawSchoolDataKey {
 
 #[tokio::test]
 async fn test() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let now = Instant::now();
     let client = Client::new();
     let data = request_target(&client).await?;
     let schools = search_school(&client, "향동중", data.clone()).await?;
@@ -52,6 +53,9 @@ async fn test() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let study = school.grade(2).class(4).day(5).study(4);
     println!("Subject: {}", study.subject);
     println!("Teacher: {}", study.teacher);
+    let then = Instant::now();
+
+    println!("Time elapsed: {}", then.duration_since(now).as_millis());
     Ok(())
 }
 
