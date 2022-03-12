@@ -1,20 +1,27 @@
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Grade {
     pub classes: Vec<Class>
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Class {
     pub days: Vec<Day>
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Day {
     pub studies: Vec<Study>
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Study {
     pub subject: String,
     pub teacher: String
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SchoolData {
     pub grades: Vec<Grade>
 }

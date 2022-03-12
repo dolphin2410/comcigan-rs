@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Instant};
+use std::{collections::HashMap};
 
 use class::{Grade, Class, Day, SchoolData};
 use hyper::{body::HttpBody as _, Client, client::HttpConnector};
@@ -45,6 +45,7 @@ impl RawSchoolDataKey {
 
 #[tokio::test]
 async fn test() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use std::time::Instant;
     let now = Instant::now();
     let client = Client::new();
     let data = request_target(&client).await?;
