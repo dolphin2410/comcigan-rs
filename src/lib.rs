@@ -1,14 +1,15 @@
 use std::{collections::HashMap};
 
-use bytes::{BytesMut, BufMut};
+use bytes::BytesMut;
 use class::{Grade, Class, Day, SchoolData};
-use hyper::{body::HttpBody as _, Client, client::HttpConnector};
+use client::ComciganClient;
 use fancy_regex::Regex;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 use anyhow::Result;
 
 pub mod class;
+pub mod client;
 
 #[derive(Serialize, Deserialize)]
 /// The raw json implementation of the school list
@@ -37,18 +38,15 @@ pub struct RawSchoolDataKey {
 }
 
 /// Creates timetable data for all classes of all grades
-pub async fn view(client: &Client<HttpConnector>, school: &School, keys: &RawSchoolDataKey) -> Result<SchoolData> {
+pub async fn view(client: &dyn ComciganClient, school: &School, keys: &RawSchoolDataKey) -> Result<SchoolData> {
     let raw_id = format!("{}{}_0_1", keys.encode_header, school.3);
     let encoded = base64::encode(raw_id);
 
     let target = keys.url_piece.split("?").nth(0).unwrap();
     let request = format!("http://comci.kr:4082/{}?{}", &target, &encoded).parse()?;
-    let mut response = client.get(request).await?;
 
     let mut buffer = BytesMut::with_capacity(1024);
-    while let Some(chunk) = response.body_mut().data().await {
-        buffer.put(&chunk?[..]);
-    }
+    client.fetch_bytes(request, &mut buffer).await?;
 
     let (school_list, _, _) = encoding_rs::UTF_8.decode(&buffer[..]);
     let json = validate_json(&school_list);
@@ -100,17 +98,14 @@ pub async fn view(client: &Client<HttpConnector>, school: &School, keys: &RawSch
 }
 
 /// Search school from the given string piece
-pub async fn search_school(client: &Client<HttpConnector>, school: &str, keys: &RawSchoolDataKey) -> Result<Vec<School>> {
+pub async fn search_school(client: &dyn ComciganClient, school: &str, keys: &RawSchoolDataKey) -> Result<Vec<School>> {
     let (result, _, _) = encoding_rs::EUC_KR.encode(school);
     let query: String = result.iter().map(|byte| format!("%{:X}", byte)).collect();
 
     // Read from the URL
     let request = format!("http://comci.kr:4082/{}{}", &keys.url_piece, &query).parse()?;
-    let mut response = client.get(request).await?;
     let mut buffer = BytesMut::with_capacity(1024);
-    while let Some(chunk) = response.body_mut().data().await {
-        buffer.put(&chunk?[..]);
-    }
+    client.fetch_bytes(request, &mut buffer).await?;
 
     let (school_list_json, _, _) = encoding_rs::UTF_8.decode(&buffer[..]);   // Gets the school list
     let json_string = validate_json(&school_list_json);
@@ -125,14 +120,12 @@ pub fn validate_json(str: &str) -> String {
 }
 
 /// Gets the keys for parsing the `RawSchoolData` struct from obfuscated JSON.
-pub async fn init(client: &Client<HttpConnector>) -> Result<RawSchoolDataKey> {
-    let request = "http://comci.kr:4082/st".parse()?;
-    let mut response = client.get(request).await?;
+pub async fn init(client: &dyn ComciganClient) -> Result<RawSchoolDataKey> {
+    let request = "http://comci.kr:4082/st".to_string();
     
     let mut buffer = BytesMut::with_capacity(1024);
-    while let Some(chunk) = response.body_mut().data().await {
-        buffer.put(&chunk?[..]);
-    }
+    client.fetch_bytes(request, &mut buffer).await?;
+
 
     let (html, _, _) = encoding_rs::EUC_KR.decode(&buffer[..]);
     let url_piece_regex = Regex::new(r#"(?<=\$\.ajax\({ url:'\.\/)(.*)(?='\+sc,success)"#).unwrap();
@@ -157,16 +150,16 @@ pub async fn init(client: &Client<HttpConnector>) -> Result<RawSchoolDataKey> {
 }
 
 #[cfg(test)]
-mod tests {
-    use hyper::Client;
+#[cfg(feature = "hyper")]
+mod hyper_tests {
     use anyhow::Result;
-    use crate::{init, search_school, view};
+    use crate::{init, search_school, view, client::HyperClient};
 
     #[tokio::test]
     async fn test() -> Result<()> {
         use std::time::Instant;
         let now = Instant::now();
-        let client = Client::new();
+        let client = HyperClient::new();
 
         let keys = init(&client).await?;
         let schools = search_school(&client, "신목중", &keys).await?;
