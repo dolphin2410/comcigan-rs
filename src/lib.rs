@@ -1,28 +1,33 @@
 use std::{collections::HashMap};
 
+use bytes::{BytesMut, BufMut};
 use class::{Grade, Class, Day, SchoolData};
 use hyper::{body::HttpBody as _, Client, client::HttpConnector};
 use fancy_regex::Regex;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
+use anyhow::Result;
 
 pub mod class;
 
 #[derive(Serialize, Deserialize)]
+/// The raw json implementation of the school list
 pub struct SchoolList {
-    pub 학교검색: Vec<School>
+    pub(crate) 학교검색: Vec<School>
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct School(u32, String, String, u32);
 
 #[derive(Serialize, Deserialize)]
+/// The raw json implementation of the school data
 pub struct RawSchoolData {
     pub timetable: Vec<Vec<Vec<Vec<u32>>>>,
     pub subjects: Vec<String>,
     pub teachers: Vec<String>
 }
 
+/// The keys for parsing the `RawSchoolData` struct from obfuscated JSON.
 pub struct RawSchoolDataKey {
     pub timetable: String,
     pub subjects: String,
@@ -31,55 +36,28 @@ pub struct RawSchoolDataKey {
     pub url_piece: String
 }
 
-impl RawSchoolDataKey {
-    pub fn clone(&self) -> RawSchoolDataKey {
-        RawSchoolDataKey {
-            timetable: self.timetable.clone(),
-            subjects: self.subjects.clone(),
-            teachers: self.teachers.clone(),
-            encode_header: self.encode_header.clone(),
-            url_piece: self.url_piece.clone()
-        }
-    }
-}
-
-#[tokio::test]
-async fn test() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    use std::time::Instant;
-    let now = Instant::now();
-    let client = Client::new();
-    let data = request_target(&client).await?;
-    let schools = search_school(&client, "향동중", data.clone()).await?;
-    let school = view(&client, &schools[0], data.clone()).await?;
-    let study = school.grade(2).class(4).day(5).study(4);
-    println!("Subject: {}", study.subject);
-    println!("Teacher: {}", study.teacher);
-    let then = Instant::now();
-
-    println!("Time elapsed: {}", then.duration_since(now).as_millis());
-    Ok(())
-}
-
-pub async fn view(client: &Client<HttpConnector>, school: &School, keys: RawSchoolDataKey) -> Result<SchoolData, Box<dyn std::error::Error + Send + Sync>> {
+/// Creates timetable data for all classes of all grades
+pub async fn view(client: &Client<HttpConnector>, school: &School, keys: &RawSchoolDataKey) -> Result<SchoolData> {
     let raw_id = format!("{}{}_0_1", keys.encode_header, school.3);
     let encoded = base64::encode(raw_id);
-
 
     let target = keys.url_piece.split("?").nth(0).unwrap();
     let request = format!("http://comci.kr:4082/{}?{}", &target, &encoded).parse()?;
     let mut response = client.get(request).await?;
 
-    let mut buffer = vec![];
+    let mut buffer = BytesMut::with_capacity(1024);
     while let Some(chunk) = response.body_mut().data().await {
-        buffer.append(&mut chunk?.to_vec());
+        buffer.put(&chunk?[..]);
     }
 
-    let (school_list, _, _) = encoding_rs::UTF_8.decode(buffer.as_slice());
+    let (school_list, _, _) = encoding_rs::UTF_8.decode(&buffer[..]);
     let json = validate_json(&school_list);
+
+    // Can't do this in structs because the keys aren't static
     let raw_data = serde_json::from_str::<HashMap<&str, Value>>(json.as_str()).unwrap();
-    let teachers = serde_json::value::from_value::<Vec<String>>(raw_data.get(keys.teachers.as_str()).unwrap().to_owned()).unwrap();
-    let subjects = serde_json::value::from_value::<Vec<String>>(raw_data.get(keys.subjects.as_str()).unwrap().to_owned()).unwrap();
-    let timetable = serde_json::value::from_value::<Vec<Vec<Vec<Vec<u32>>>>>(raw_data.get(keys.timetable.as_str()).unwrap().to_owned()).unwrap();
+    let teachers = serde_json::value::from_value::<Vec<String>>(raw_data.get(keys.teachers.as_str()).unwrap().to_owned()).unwrap(); // Get teachers list
+    let subjects = serde_json::value::from_value::<Vec<String>>(raw_data.get(keys.subjects.as_str()).unwrap().to_owned()).unwrap(); // Get subjects list
+    let timetable = serde_json::value::from_value::<Vec<Vec<Vec<Vec<u32>>>>>(raw_data.get(keys.timetable.as_str()).unwrap().to_owned()).unwrap();   // Get timetable list
     
     let data = RawSchoolData {
         teachers,
@@ -89,83 +67,121 @@ pub async fn view(client: &Client<HttpConnector>, school: &School, keys: RawScho
 
     buffer.clear();
 
-    let mut to_return = SchoolData { grades: vec![] };
+    let mut school_data = SchoolData { name: school.1.clone(), grades: vec![] };  // todo fix school name
     for grade_index in 1..data.timetable.len() {
-        let mut grade = Grade { classes: vec![] };
+        let mut grade = Grade::new(grade_index as u8);
+
         for class_index in 1..data.timetable[grade_index].len() {
-            let mut class = Class { days: vec![] };
+            let mut class = Class::new(class_index as u8);
+
             for days_index in 1..data.timetable[grade_index][class_index].len() {
-                let mut day = Day { studies: vec![] };
+                let mut day = Day::new(days_index as u8);
+
                 for index in 1..data.timetable[grade_index][class_index][days_index].len() {
                     let subj_data = data.timetable[grade_index][class_index][days_index][index];
                     let th = (subj_data as f32 / 100.0).floor() as u32;
                     let code = subj_data - (th * 100);
                     let mut subject = data.subjects[code as usize].clone();
-                    let mut teacher = data.teachers[th as usize].clone();
+                    let mut teacher = data.teachers[(th % 100) as usize].clone();
                     if subject == "19" {
                         subject.clear();
                         teacher.clear();
                     }
-                    day.studies.push(class::Study { subject, teacher })
+                    day.periods.push(class::Period { subject, teacher, period_num: index as u8 });
                 }
                 class.days.push(day)
             }
             grade.classes.push(class);
         }
-        to_return.grades.push(grade);
+        school_data.grades.push(grade);
     }
 
-    Ok(to_return)
+    Ok(school_data)
 }
 
-pub async fn search_school(client: &Client<HttpConnector>, school: &'static str, keys: RawSchoolDataKey) -> Result<Vec<School>, Box<dyn std::error::Error + Send + Sync>> {
+/// Search school from the given string piece
+pub async fn search_school(client: &Client<HttpConnector>, school: &str, keys: &RawSchoolDataKey) -> Result<Vec<School>> {
     let (result, _, _) = encoding_rs::EUC_KR.encode(school);
     let query: String = result.iter().map(|byte| format!("%{:X}", byte)).collect();
 
+    // Read from the URL
     let request = format!("http://comci.kr:4082/{}{}", &keys.url_piece, &query).parse()?;
     let mut response = client.get(request).await?;
-    
-    let mut buffer = vec![];
+    let mut buffer = BytesMut::with_capacity(1024);
     while let Some(chunk) = response.body_mut().data().await {
-        buffer.append(&mut chunk?.to_vec());
+        buffer.put(&chunk?[..]);
     }
 
-    let (school_list, _, _) = encoding_rs::UTF_8.decode(buffer.as_slice());
+    let (school_list_json, _, _) = encoding_rs::UTF_8.decode(&buffer[..]);   // Gets the school list
+    let json_string = validate_json(&school_list_json);
+    let school_list = serde_json::from_str::<SchoolList>(json_string.as_str()).unwrap().학교검색;
 
-    Ok(serde_json::from_str::<SchoolList>(validate_json(&school_list).as_str()).unwrap().학교검색)
+    Ok(school_list)
 }
 
+/// Removes invalid characters from the json string
 pub fn validate_json(str: &str) -> String {
     str.chars().filter(|c| { c != &'\u{0}' }).collect::<String>()
 }
 
-pub async fn request_target(client: &Client<HttpConnector>) -> Result<RawSchoolDataKey, Box<dyn std::error::Error + Send + Sync>> {
+/// Gets the keys for parsing the `RawSchoolData` struct from obfuscated JSON.
+pub async fn init(client: &Client<HttpConnector>) -> Result<RawSchoolDataKey> {
     let request = "http://comci.kr:4082/st".parse()?;
     let mut response = client.get(request).await?;
     
-    let mut buffer = vec![];
+    let mut buffer = BytesMut::with_capacity(1024);
     while let Some(chunk) = response.body_mut().data().await {
-        buffer.append(&mut chunk?.to_vec());
+        buffer.put(&chunk?[..]);
     }
 
-    let (html, _, _) = encoding_rs::EUC_KR.decode(buffer.as_slice());
-    let re = Regex::new(r#"(?<=\$\.ajax\({ url:'\.\/)(.*)(?='\+sc,success)"#).unwrap();
+    let (html, _, _) = encoding_rs::EUC_KR.decode(&buffer[..]);
+    let url_piece_regex = Regex::new(r#"(?<=\$\.ajax\({ url:'\.\/)(.*)(?='\+sc,success)"#).unwrap();
 
-    let re2 = Regex::new(r#"(?<=sc_data\(')(.*)(?=',sc,1)"#).unwrap();
+    let encode_header_regex = Regex::new(r#"(?<=sc_data\(')(.*)(?=',sc,1)"#).unwrap();
 
-    let re3 = Regex::new(r#"(?<=if\(th<자료\.)(.*)(?=\.length\))"#).unwrap();
+    let teachers_regex = Regex::new(r#"(?<=if\(th<자료\.)(.*)(?=\.length\))"#).unwrap();
     
-    let re4 = Regex::new(r#"(?<=일일자료=자료\.)(.*)(?=\[학년\]\[반\]\[요일\]\[교시\];if\(자료\.강의실==1)"#).unwrap();
+    let timetable_regex = Regex::new(r#"(?<=일일자료=자료\.)(.*)(?=\[학년\]\[반\]\[요일\]\[교시\];if\(자료\.강의실==1)"#).unwrap();
 
-    let re5 = Regex::new(r#"(?<=속성\+"'>"\+자료\.)(.*)(?=\[sb\]\+"<br>"\+성명)"#).unwrap();
+    let subjects_regex = Regex::new(r#"(?<=속성\+"'>"\+자료\.)(.*)(?=\[sb\]\+"<br>"\+성명)"#).unwrap();
 
     let keys = RawSchoolDataKey {
-        subjects: String::from(re5.find(&html).unwrap().unwrap().as_str()),
-        teachers: String::from(re3.find(&html).unwrap().unwrap().as_str()),
-        timetable: String::from(re4.find(&html).unwrap().unwrap().as_str()),
-        encode_header: String::from(re2.find(&html).unwrap().unwrap().as_str()),
-        url_piece: String::from(re.find(&html).unwrap().unwrap().as_str())
+        url_piece: url_piece_regex.find(&html)?.unwrap().as_str().to_string(),
+        encode_header: encode_header_regex.find(&html)?.unwrap().as_str().to_string(),
+        timetable: timetable_regex.find(&html)?.unwrap().as_str().to_string(),
+        teachers: teachers_regex.find(&html)?.unwrap().as_str().to_string(),
+        subjects: subjects_regex.find(&html)?.unwrap().as_str().to_string()
     };
 
     Ok(keys)
+}
+
+#[cfg(test)]
+mod tests {
+    use hyper::Client;
+    use anyhow::Result;
+    use crate::{init, search_school, view};
+
+    #[tokio::test]
+    async fn test() -> Result<()> {
+        use std::time::Instant;
+        let now = Instant::now();
+        let client = Client::new();
+
+        let keys = init(&client).await?;
+        let schools = search_school(&client, "신목중", &keys).await?;
+        let school = view(&client, &schools[0], &keys).await?;
+
+        // 2학년 13반 금요일 4교시
+        let day = school.grade(2).class(13).day(5);
+
+        for period in day.list_periods() {
+            println!("{}\n", period);
+        }
+
+        let then = Instant::now();
+
+        println!("Time elapsed: {}", then.duration_since(now).as_millis());
+        Ok(())
+    }
 }
