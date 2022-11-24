@@ -6,7 +6,7 @@ use bytes::{BytesMut, BufMut};
 use hyper::body::HttpBody;
 
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait ComciganClient {
     async fn fetch_bytes(&self, url: String, target: &mut BytesMut) -> anyhow::Result<()>;
 }
@@ -16,7 +16,7 @@ pub struct HyperClient {
     client: hyper::Client<hyper::client::HttpConnector>
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 #[cfg(feature = "hyper")]
 impl ComciganClient for HyperClient {
     async fn fetch_bytes(&self, url: String, target: &mut BytesMut) -> anyhow::Result<()> {
@@ -43,13 +43,19 @@ impl HyperClient {
 #[cfg(feature = "wasm")]
 pub struct WasmClient {}
 
-#[async_trait]
+#[async_trait(?Send)]
 #[cfg(feature = "wasm")]
 impl ComciganClient for WasmClient {
     async fn fetch_bytes(&self, url: String, target: &mut BytesMut) -> anyhow::Result<()> {
-        let request = ehttp::Request::get(url);
-        let res = ehttp::fetch_blocking(&request).unwrap();
-        target.put(&res.bytes.clone()[..]);
+        let fetched_data = gloo_net::http::Request::get(url.as_str())
+            .send()
+            .await
+            .unwrap()
+            .binary()
+            .await
+            .unwrap();
+
+        target.put(&fetched_data[..]);
         Ok(())
     }
 }
