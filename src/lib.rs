@@ -128,7 +128,7 @@ pub async fn init(client: &dyn ComciganClient) -> Result<RawSchoolDataKey> {
     client.fetch_bytes(request, &mut buffer).await?;
 
 
-    let (html, _, _) = encoding_rs::EUC_KR.decode(&buffer[..]);
+    let (html, _, _) = encoding_rs::UTF_8.decode(&buffer[..]);
     let url_piece_regex = Regex::new(r#"(?<=\$\.ajax\({ url:'\.\/)(.*)(?='\+sc,success)"#).unwrap();
 
     let encode_header_regex = Regex::new(r#"(?<=sc_data\(')(.*)(?=',sc,1)"#).unwrap();
