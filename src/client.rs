@@ -41,13 +41,15 @@ impl HyperClient {
 }
 
 #[cfg(feature = "wasm")]
-pub struct WasmClient {}
+pub struct WasmClient {
+    pub proxy: String
+}
 
 #[async_trait(?Send)]
 #[cfg(feature = "wasm")]
 impl ComciganClient for WasmClient {
     async fn fetch_bytes(&self, url: String, target: &mut BytesMut) -> anyhow::Result<()> {
-        let fetched_data = gloo_net::http::Request::get(url.as_str())
+        let fetched_data = gloo_net::http::Request::get(format!("{}{}", url, self.proxy).as_str())
             .send()
             .await
             .unwrap()
@@ -62,7 +64,7 @@ impl ComciganClient for WasmClient {
 
 #[cfg(feature = "wasm")]
 impl WasmClient {
-    pub fn new() -> WasmClient {
-        WasmClient {  }
+    pub fn new(proxy: String) -> WasmClient {
+        WasmClient { proxy }
     }
 }
