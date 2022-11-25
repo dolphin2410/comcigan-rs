@@ -109,7 +109,7 @@ pub async fn search_school(client: &dyn ComciganClient, school: &str, keys: &Raw
 
     let (school_list_json, _, _) = encoding_rs::UTF_8.decode(&buffer[..]);   // Gets the school list
     let json_string = validate_json(&school_list_json);
-    log::info!("{}", json_string);
+    log::info!("{:?}", &buffer[..]);
     let school_list = serde_json::from_str::<SchoolList>(json_string.as_str()).unwrap().학교검색;
 
     Ok(school_list)
