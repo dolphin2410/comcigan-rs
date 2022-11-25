@@ -9,6 +9,7 @@ use hyper::body::HttpBody;
 #[async_trait(?Send)]
 pub trait ComciganClient {
     async fn fetch_bytes(&self, url: String, target: &mut BytesMut) -> anyhow::Result<()>;
+    async fn fetch_string(&self, url: String, target: &mut String) -> anyhow::Result<()>;
 }
 
 #[cfg(feature = "hyper")]
@@ -26,6 +27,16 @@ impl ComciganClient for HyperClient {
         while let Some(chunk) = response.body_mut().data().await {
             target.put(&chunk?[..]);
         }
+
+        Ok(())
+    }
+
+    async fn fetch_string(&self, url: String, target: &mut String) -> anyhow::Result<()> {
+        let mut buf = BytesMut::with_capacity(1024);
+        let bytes = self.fetch_bytes(url, &mut bytes).await?;
+        let (string, _, _) = encoding_rs::UTF_8.decode(&bytes[..]);
+
+        target.push_str(string);
 
         Ok(())
     }
@@ -53,12 +64,24 @@ impl ComciganClient for WasmClient {
             .send()
             .await
             .unwrap()
-            .text   ()
+            .binary()
             .await
             .unwrap();
         
-        target.put(&fetched_data.as_bytes()[..]);
+        target.put(&fetched_data[..]);
         Ok(())
+    }
+
+    async fn fetch_string(&self, url: String, target: &mut String) -> anyhow::Result<()> {
+        let fetched_data = gloo_net::http::Request::get(format!("{}{}", self.proxy, url).as_str())
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        
+        target.push_str(fetched_data);
     }
 }
 

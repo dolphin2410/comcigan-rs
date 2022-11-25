@@ -45,10 +45,9 @@ pub async fn view(client: &dyn ComciganClient, school: &School, keys: &RawSchool
     let target = keys.url_piece.split("?").nth(0).unwrap();
     let request = format!("http://comci.kr:4082/{}?{}", &target, &encoded).parse()?;
 
-    let mut buffer = BytesMut::with_capacity(1024);
-    client.fetch_bytes(request, &mut buffer).await?;
+    let mut school_list = String::new();
+    client.fetch_string(request, &mut school_list).await?;
 
-    let (school_list, _, _) = encoding_rs::UTF_8.decode(&buffer[..]);
     let json = validate_json(&school_list);
 
     // Can't do this in structs because the keys aren't static
@@ -62,8 +61,6 @@ pub async fn view(client: &dyn ComciganClient, school: &School, keys: &RawSchool
         subjects,
         timetable
     };
-
-    buffer.clear();
 
     let mut school_data = SchoolData { name: school.1.clone(), grades: vec![] };  // todo fix school name
     for grade_index in 1..data.timetable.len() {
@@ -104,12 +101,10 @@ pub async fn search_school(client: &dyn ComciganClient, school: &str, keys: &Raw
 
     // Read from the URL
     let request = format!("http://comci.kr:4082/{}{}", &keys.url_piece, &query).parse()?;
-    let mut buffer = BytesMut::with_capacity(1024);
-    client.fetch_bytes(request, &mut buffer).await?;
+    let mut school_list_json = String::new();
+    client.fetch_string(request, &mut school_list_json).await?;
 
-    let (school_list_json, _, _) = encoding_rs::UTF_8.decode(&buffer[..]);   // Gets the school list
     let json_string = validate_json(&school_list_json);
-    log::info!("{:?}", &buffer[..]);
     let school_list = serde_json::from_str::<SchoolList>(json_string.as_str()).unwrap().학교검색;
 
     Ok(school_list)
@@ -127,8 +122,7 @@ pub async fn init(client: &dyn ComciganClient) -> Result<RawSchoolDataKey> {
     let mut buffer = BytesMut::with_capacity(1024);
     client.fetch_bytes(request, &mut buffer).await?;
 
-
-    let (html, _, _) = encoding_rs::UTF_8.decode(&buffer[..]);
+    let (html, _, _) = encoding_rs::EUC_KR.decode(&buffer[..]);
     let url_piece_regex = Regex::new(r#"(?<=\$\.ajax\({ url:'\.\/)(.*)(?='\+sc,success)"#).unwrap();
 
     let encode_header_regex = Regex::new(r#"(?<=sc_data\(')(.*)(?=',sc,1)"#).unwrap();
