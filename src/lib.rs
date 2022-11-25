@@ -158,6 +158,7 @@ mod hyper_tests {
 
     #[tokio::test]
     async fn test() -> Result<()> {
+        simple_logger::SimpleLogger::new().init().unwrap();
         use std::time::Instant;
         let now = Instant::now();
         let client = HyperClient::new();

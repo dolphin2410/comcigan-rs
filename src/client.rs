@@ -53,13 +53,11 @@ impl ComciganClient for WasmClient {
             .send()
             .await
             .unwrap()
-            .binary()
+            .text   ()
             .await
             .unwrap();
         
-        log::info!("{}{}", self.proxy, url);
-
-        target.put(&fetched_data[..]);
+        target.put(&fetched_data.as_bytes()[..]);
         Ok(())
     }
 }
