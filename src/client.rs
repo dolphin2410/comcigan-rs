@@ -49,7 +49,7 @@ pub struct WasmClient {
 #[cfg(feature = "wasm")]
 impl ComciganClient for WasmClient {
     async fn fetch_bytes(&self, url: String, target: &mut BytesMut) -> anyhow::Result<()> {
-        let fetched_data = gloo_net::http::Request::get(format!("{}{}", url, self.proxy).as_str())
+        let fetched_data = gloo_net::http::Request::get(format!("{}{}", self.proxy, url).as_str())
             .send()
             .await
             .unwrap()
