@@ -82,6 +82,13 @@ impl SchoolData {
     pub fn list_grades(&self) -> Vec<Grade> {
         self.grades.clone()
     }
+
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            grades: vec![]
+        }
+    }
 }
 
 impl Grade {
