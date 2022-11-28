@@ -80,8 +80,12 @@ impl ComciganClient for WasmClient {
             .text()
             .await
             .unwrap();
-        
-        target.push_str(fetched_data);
+
+        log::info!("Raw: {}", fetched_data);
+
+        target.push_str(fetched_data.as_str());
+
+        Ok(())
     }
 }
 

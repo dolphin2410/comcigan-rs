@@ -17,8 +17,8 @@ pub struct SchoolList {
     pub(crate) 학교검색: Vec<School>
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct School(u32, String, String, u32);
+#[derive(Clone, Serialize, Deserialize)]
+pub struct School(pub u32, pub String, pub String, pub u32);
 
 #[derive(Serialize, Deserialize)]
 /// The raw json implementation of the school data
@@ -62,7 +62,7 @@ pub async fn view(client: &dyn ComciganClient, school: &School, keys: &RawSchool
         timetable
     };
 
-    let mut school_data = SchoolData { name: school.1.clone(), grades: vec![] };  // todo fix school name
+    let mut school_data = SchoolData { name: school.2.clone(), grades: vec![] };  // todo fix school name
     for grade_index in 1..data.timetable.len() {
         let mut grade = Grade::new(grade_index as u8);
 
@@ -100,9 +100,12 @@ pub async fn search_school(client: &dyn ComciganClient, school: &str, keys: &Raw
     let query: String = result.iter().map(|byte| format!("%{:X}", byte)).collect();
 
     // Read from the URL
-    let request = format!("http://comci.kr:4082/{}{}", &keys.url_piece, &query).parse()?;
+    let request = format!("http://comci.kr:4082/{}{}", &keys.url_piece, &query);
+    log::info!("URL: {}", request.clone());
     let mut school_list_json = String::new();
     client.fetch_string(request, &mut school_list_json).await?;
+
+    log::info!("{}", school_list_json);
 
     let json_string = validate_json(&school_list_json);
     let school_list = serde_json::from_str::<SchoolList>(json_string.as_str()).unwrap().학교검색;
