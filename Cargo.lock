@@ -164,6 +164,7 @@ dependencies = [
 [[package]]
 name = "gloo-net"
 version = "0.2.4"
+source = "git+http://github.com/dolphin2410/gloo#cac4376136c5a43baeb969b80f0a89dd37bd9ac9"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -182,6 +183,7 @@ dependencies = [
 [[package]]
 name = "gloo-utils"
 version = "0.1.5"
+source = "git+http://github.com/dolphin2410/gloo#cac4376136c5a43baeb969b80f0a89dd37bd9ac9"
 dependencies = [
  "js-sys",
  "serde",
