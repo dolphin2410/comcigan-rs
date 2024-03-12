@@ -189,14 +189,7 @@ mod hyper_tests {
             println!("{}\n", period);
         }
 
-        let then = Instant::now();
-
-        println!("Time elapsed: {}", then.duration_since(now).as_millis());
-        Ok(())
-    }
-() {
-            println!("{}\n", period);
-        }
+        log::warn!("WA SANS");
 
         let then = Instant::now();
 
