@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use bytes::BytesMut;
 use class::{Grade, Class, Day, SchoolData};
 use client::ComciganClient;
+use data::{RawSchoolData, RawSchoolDataKey, School, SchoolList};
 use fancy_regex::Regex;
-use serde::{Serialize, Deserialize};
 use serde_json::Value;
 use anyhow::Result;
 
@@ -12,32 +12,7 @@ use crate::util::pop_first_element;
 pub mod class;
 pub mod client;
 pub mod util;
-
-#[derive(Serialize, Deserialize)]
-/// The raw json implementation of the school list
-pub struct SchoolList {
-    pub(crate) 학교검색: Vec<School>
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct School(pub u32, pub String, pub String, pub u32);
-
-#[derive(Serialize, Deserialize)]
-/// The raw json implementation of the school data
-pub struct RawSchoolData {
-    pub timetable: Vec<Vec<Vec<Vec<u32>>>>,
-    pub subjects: Vec<String>,
-    pub teachers: Vec<String>
-}
-
-/// The keys for parsing the `RawSchoolData` struct from obfuscated JSON.
-pub struct RawSchoolDataKey {
-    pub timetable: String,
-    pub subjects: String,
-    pub teachers: String,
-    pub encode_header: String,
-    pub url_piece: String
-}
+pub mod data;
 
 /// Creates timetable data for all classes of all grades
 pub async fn view(client: &dyn ComciganClient, school: &School, keys: &RawSchoolDataKey) -> Result<SchoolData> {
@@ -52,9 +27,6 @@ pub async fn view(client: &dyn ComciganClient, school: &School, keys: &RawSchool
 
     let json = validate_json(&school_list);
     
-    // println!("JSON: {:?}", json);
-
-    // Can't do this in structs because the keys aren't static
     let raw_data = serde_json::from_str::<HashMap<&str, Value>>(json.as_str()).unwrap();
  
     let teachers = serde_json::value::from_value::<Vec<String>>(raw_data.get(keys.teachers.as_str()).unwrap().to_owned()).unwrap(); // Get teachers list
@@ -93,7 +65,7 @@ pub async fn view(client: &dyn ComciganClient, school: &School, keys: &RawSchool
                     let code = subj_data - (th * 1000);
                     let mut subject = data.subjects[th as usize - 1].clone();
                     let mut teacher = data.teachers[(code % 1000) as usize].clone();
-                    if subject == "19" { // 28 32 25
+                    if subject == "19" {
                         subject.clear();
                         teacher.clear();
                     }
@@ -139,8 +111,6 @@ pub async fn init(client: &dyn ComciganClient) -> Result<RawSchoolDataKey> {
     client.fetch_bytes(request, &mut buffer).await?;
 
     let (html, _, _) = encoding_rs::EUC_KR.decode(&buffer[..]);
-
-    // println!("HTML: {}", html);
 
     let url_piece_regex = Regex::new(r#"(?<=\$\.ajax\({ url:'\.\/)(.*)(?='\+sc,success)"#).unwrap();
 

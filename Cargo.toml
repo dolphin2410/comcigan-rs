@@ -25,6 +25,7 @@ async-trait = "0.1.58"
 gloo-net = { git = "http://github.com/dolphin2410-archive/gloo", optional = true }
 log = "0.4.17"
 simple_logger = "4.3.3"
+lazy_static = "1.4.0"
 
 [features]
 hyper = ["dep:hyper", "tokio"]

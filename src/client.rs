@@ -33,7 +33,7 @@ impl ComciganClient for HyperClient {
 
     async fn fetch_string(&self, url: String, target: &mut String) -> anyhow::Result<()> {
         let mut buf = BytesMut::with_capacity(1024);
-        let bytes = self.fetch_bytes(url, &mut buf).await?;
+        self.fetch_bytes(url, &mut buf).await?;
         let (string, _, _) = encoding_rs::UTF_8.decode(&buf[..]);
 
         target.push_str(&string);

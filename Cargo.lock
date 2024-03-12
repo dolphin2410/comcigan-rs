@@ -137,6 +137,7 @@ dependencies = [
  "fancy-regex",
  "gloo-net",
  "hyper",
+ "lazy_static",
  "log",
  "serde",
  "serde_json",
