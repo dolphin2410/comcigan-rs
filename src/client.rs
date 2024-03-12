@@ -7,6 +7,7 @@ use hyper::body::HttpBody;
 
 
 #[async_trait(?Send)]
+#[napi]
 pub trait ComciganClient {
     async fn fetch_bytes(&self, url: String, target: &mut BytesMut) -> anyhow::Result<()>;
     async fn fetch_string(&self, url: String, target: &mut String) -> anyhow::Result<()>;
@@ -20,7 +21,6 @@ pub struct HyperClient {
 #[async_trait(?Send)]
 #[cfg(any(feature = "hyper"))]
 impl ComciganClient for HyperClient {
-    #[napi]
     async fn fetch_bytes(&self, url: String, target: &mut BytesMut) -> anyhow::Result<()> {
         let request = url.parse()?;
         let mut response = self.client.get(request).await?;
@@ -32,7 +32,6 @@ impl ComciganClient for HyperClient {
         Ok(())
     }
 
-    #[napi]
     async fn fetch_string(&self, url: String, target: &mut String) -> anyhow::Result<()> {
         let mut buf = BytesMut::with_capacity(1024);
         let bytes = self.fetch_bytes(url, &mut buf).await?;
@@ -63,6 +62,7 @@ pub struct WasmClient {
 #[cfg(feature = "wasm")]
 #[napi]
 impl ComciganClient for WasmClient {
+    #[napi]
     async fn fetch_bytes(&self, url: String, target: &mut BytesMut) -> anyhow::Result<()> {
         let fetched_data = gloo_net::http::Request::get(format!("{}{}", self.proxy, url).as_str())
             .send()
@@ -76,6 +76,7 @@ impl ComciganClient for WasmClient {
         Ok(())
     }
 
+    #[napi]
     async fn fetch_string(&self, url: String, target: &mut String) -> anyhow::Result<()> {
         let fetched_data = gloo_net::http::Request::get(format!("{}{}", self.proxy, url).as_str())
             .send()
@@ -96,6 +97,7 @@ impl ComciganClient for WasmClient {
 #[cfg(feature = "wasm")]
 #[napi]
 impl WasmClient {
+    #[napi]
     pub fn new(proxy: String) -> WasmClient {
         WasmClient { proxy }
     }
