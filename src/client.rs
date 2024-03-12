@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 #[allow(unused_imports)]
 use bytes::{BytesMut, BufMut};
-#[cfg(feature = "hyper")]
+#[cfg(any(feature = "hyper"))]
 use hyper::body::HttpBody;
 
 
@@ -12,14 +12,15 @@ pub trait ComciganClient {
     async fn fetch_string(&self, url: String, target: &mut String) -> anyhow::Result<()>;
 }
 
-#[cfg(feature = "hyper")]
+#[cfg(any(feature = "hyper"))]
 pub struct HyperClient {
     client: hyper::Client<hyper::client::HttpConnector>
 }
 
 #[async_trait(?Send)]
-#[cfg(feature = "hyper")]
+#[cfg(any(feature = "hyper"))]
 impl ComciganClient for HyperClient {
+    #[napi]
     async fn fetch_bytes(&self, url: String, target: &mut BytesMut) -> anyhow::Result<()> {
         let request = url.parse()?;
         let mut response = self.client.get(request).await?;
@@ -31,18 +32,19 @@ impl ComciganClient for HyperClient {
         Ok(())
     }
 
+    #[napi]
     async fn fetch_string(&self, url: String, target: &mut String) -> anyhow::Result<()> {
         let mut buf = BytesMut::with_capacity(1024);
-        let bytes = self.fetch_bytes(url, &mut bytes).await?;
-        let (string, _, _) = encoding_rs::UTF_8.decode(&bytes[..]);
+        let bytes = self.fetch_bytes(url, &mut buf).await?;
+        let (string, _, _) = encoding_rs::UTF_8.decode(&buf[..]);
 
-        target.push_str(string);
+        target.push_str(&string);
 
         Ok(())
     }
 }
 
-#[cfg(feature = "hyper")]
+#[cfg(any(feature = "hyper"))]
 impl HyperClient {
     pub fn new() -> HyperClient {
         HyperClient {
@@ -52,12 +54,14 @@ impl HyperClient {
 }
 
 #[cfg(feature = "wasm")]
+#[napi]
 pub struct WasmClient {
     pub proxy: String
 }
 
 #[async_trait(?Send)]
 #[cfg(feature = "wasm")]
+#[napi]
 impl ComciganClient for WasmClient {
     async fn fetch_bytes(&self, url: String, target: &mut BytesMut) -> anyhow::Result<()> {
         let fetched_data = gloo_net::http::Request::get(format!("{}{}", self.proxy, url).as_str())
@@ -90,6 +94,7 @@ impl ComciganClient for WasmClient {
 }
 
 #[cfg(feature = "wasm")]
+#[napi]
 impl WasmClient {
     pub fn new(proxy: String) -> WasmClient {
         WasmClient { proxy }
