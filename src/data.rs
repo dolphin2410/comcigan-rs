@@ -26,6 +26,7 @@ pub struct RawSchoolData {
 
 /// The keys for parsing the `RawSchoolData` struct from obfuscated JSON.
 /// the values in this struct is in the following format: '자료000'
+#[derive(Clone, Debug)]
 pub struct RawSchoolDataKey {
     pub timetable: String,
     pub subjects: String,

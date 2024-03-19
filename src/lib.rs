@@ -29,6 +29,8 @@ pub async fn view(client: &dyn ComciganClient, school: &School, keys: &RawSchool
     
     let raw_data = serde_json::from_str::<HashMap<&str, Value>>(json.as_str()).unwrap();
  
+    println!("JSON: {}", json);
+    
     let teachers = serde_json::value::from_value::<Vec<String>>(raw_data.get(keys.teachers.as_str()).unwrap().to_owned()).unwrap(); // Get teachers list
     let subjects_value: Value = serde_json::value::from_value(raw_data.get(keys.subjects.as_str()).unwrap().to_owned()).unwrap(); // Get subjects list
     
@@ -40,7 +42,6 @@ pub async fn view(client: &dyn ComciganClient, school: &School, keys: &RawSchool
     
     let timetable_value = serde_json::value::from_value::<Value>(raw_data.get(keys.timetable.as_str()).unwrap().to_owned()).unwrap();   // Get timetable list
     let timetable_vec = pop_first_element(&timetable_value);
-    // println!("{:?}", timetable_vec);
     let timetable: Vec<Vec<Vec<Vec<u32>>>> = serde_json::from_value(timetable_vec).unwrap();
     
     let data = RawSchoolData {
@@ -63,12 +64,23 @@ pub async fn view(client: &dyn ComciganClient, school: &School, keys: &RawSchool
                     let subj_data = data.timetable[grade_index][class_index][days_index][index];
                     let th = (subj_data as f32 / 1000.0).floor() as u32;
                     let code = subj_data - (th * 1000);
-                    let mut subject = data.subjects[th as usize - 1].clone();
+
+                    let mut subject = if th > 0 {
+                        data.subjects[th as usize - 1].clone()
+                    } else {
+                        String::from("<UNKNOWN ERROR>")
+                    };
+
                     let mut teacher = data.teachers[(code % 1000) as usize].clone();
+
+                    // issue: unknown
+
                     if subject == "19" {
                         subject.clear();
                         teacher.clear();
                     }
+
+                    // println!("th: {}, code: {}, subject: {}", th, code, subject.clone());
 
                     day.periods.push(class::Period { subject, teacher, period_num: index as u8 });
                 }
@@ -129,6 +141,8 @@ pub async fn init(client: &dyn ComciganClient) -> Result<RawSchoolDataKey> {
         teachers: teachers_regex.find(&html)?.unwrap().as_str().to_string(),
         subjects: subjects_regex.find(&html)?.unwrap().as_str().to_string()
     };
+
+    println!("Keys: {:?}", keys.clone());
 
     Ok(keys)
 }
