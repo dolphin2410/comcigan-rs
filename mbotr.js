@@ -17,18 +17,19 @@ function response(room, msg, sender, isGroupChat, replier, imageDB, packageName)
     let split = msg.split(" ");
     let commands = split[0]
 
-    if(commands == "!시간표") {
+    if (commands == "!시간표") {
         let delta = "오늘"
         if (split.length > 1) {
             delta = split[1]
         }
-        replier.reply(loadTimetable(findDelta(delta)), 1)
-    } else if(commands = "!시간표2") {
+        replier.reply(loadTimetable(findDelta(delta), 1))
+    } else if (commands.startsWith("!시간표") && commands != "!시간표") {
         let delta = "오늘"
         if (split.length > 1) {
             delta = split[1]
         }
-        replier.reply(loadTimetable(findDelta(delta)), 2)
+        let ban = commands.substring(4)
+        replier.reply(loadTimetable(findDelta(delta), ban))
     }
 }
 
